@@ -1,45 +1,48 @@
 const express = require("express");
+const pool = require("./db");
 const app = express();
 app.use(express.json());
 
-let tasks = [];
-let nextId = 1;
-
 // Read all
-app.get("/tasks", (req, res) => {
-  res.json(tasks);
+app.get("/tasks", async (req, res) => {
+  const result = await pool.query("SELECT * FROM tasks ORDER BY id");
+  res.json(result.rows);
+});
+
+// Read one
+app.get("/tasks/:id", async (req, res) => {
+  const result = await pool.query("SELECT * FROM tasks WHERE id = $1", [req.params.id]);
+  if (result.rows.length === 0) return res.status(404).json({ error: "Task not found" });
+  res.json(result.rows[0]);
 });
 
 // Create
-app.post("/tasks", (req, res) => {
+app.post("/tasks", async (req, res) => {
   const { title } = req.body;
   if (!title) return res.status(400).json({ error: "Title is required" });
-  const task = { id: nextId++, title, done: false };
-  tasks.push(task);
-  res.status(201).json(task);
-});
-// Read one
-app.get("/tasks/:id", (req, res) => {
-  const task = tasks.find((t) => t.id === Number(req.params.id));
-  if (!task) return res.status(404).json({ error: "Task not found" });
-  res.json(task);
+  const result = await pool.query(
+    "INSERT INTO tasks (title) VALUES ($1) RETURNING *",
+    [title]
+  );
+  res.status(201).json(result.rows[0]);
 });
 
 // Update
-app.put("/tasks/:id", (req, res) => {
-  const task = tasks.find((t) => t.id === Number(req.params.id));
-  if (!task) return res.status(404).json({ error: "Task not found" });
+app.put("/tasks/:id", async (req, res) => {
   const { title, done } = req.body;
-  if (title !== undefined) task.title = title;
-  if (done !== undefined) task.done = done;
-  res.json(task);
+  const result = await pool.query(
+    "UPDATE tasks SET title = COALESCE($1, title), done = COALESCE($2, done) WHERE id = $3 RETURNING *",
+    [title, done, req.params.id]
+  );
+  if (result.rows.length === 0) return res.status(404).json({ error: "Task not found" });
+  res.json(result.rows[0]);
 });
 
 // Delete
-app.delete("/tasks/:id", (req, res) => {
-  const index = tasks.findIndex((t) => t.id === Number(req.params.id));
-  if (index === -1) return res.status(404).json({ error: "Task not found" });
-  tasks.splice(index, 1);
+app.delete("/tasks/:id", async (req, res) => {
+  const result = await pool.query("DELETE FROM tasks WHERE id = $1 RETURNING id", [req.params.id]);
+  if (result.rows.length === 0) return res.status(404).json({ error: "Task not found" });
   res.status(204).send();
-})
+});
+
 app.listen(3000, () => console.log("Listening on port 3000"));
