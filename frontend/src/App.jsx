@@ -2,46 +2,72 @@ import { useState, useEffect } from "react";
 
 const API = "http://localhost:3000/tasks";
 
+async function request(url, options) {
+  const res = await fetch(url, options);
+  if (!res.ok) throw new Error(`Request failed (${res.status})`);
+  return res;
+}
+
 function App() {
   const [tasks, setTasks] = useState([]);
   const [title, setTitle] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   async function loadTasks() {
-    const res = await fetch(API);
-    const data = await res.json();
-    setTasks(data);
+    try {
+      const res = await request(API);
+      setTasks(await res.json());
+      setError("");
+    } catch {
+      setError("Could not load tasks. Is the server running?");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
     loadTasks();
   }, []);
 
-  async function addTask(e) {
+  async function run(action, message) {
+    try {
+      await action();
+      await loadTasks();
+    } catch {
+      setError(message);
+    }
+  }
+
+  function addTask(e) {
     e.preventDefault();
     if (!title.trim()) return;
-    await fetch(API, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title }),
-    });
-    setTitle("");
-    loadTasks();
+    run(async () => {
+      await request(API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+      setTitle("");
+    }, "Could not add the task.");
   }
 
-  async function toggleTask(task) {
-    await fetch(`${API}/${task.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ done: !task.done }),
-    });
-    loadTasks();
+  function toggleTask(task) {
+    run(async () => {
+      await request(`${API}/${task.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ done: !task.done }),
+      });
+    }, "Could not update the task.");
   }
 
-  async function deleteTask(id) {
-    await fetch(`${API}/${id}`, { method: "DELETE" });
-    loadTasks();
+  function deleteTask(id) {
+    run(async () => {
+      await request(`${API}/${id}`, { method: "DELETE" });
+    }, "Could not delete the task.");
   }
 
   function startEdit(task) {
@@ -54,15 +80,16 @@ function App() {
     setEditTitle("");
   }
 
-  async function saveEdit(id) {
+  function saveEdit(id) {
     if (!editTitle.trim()) return;
-    await fetch(`${API}/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: editTitle }),
-    });
-    cancelEdit();
-    loadTasks();
+    run(async () => {
+      await request(`${API}/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: editTitle }),
+      });
+      cancelEdit();
+    }, "Could not save the change.");
   }
 
   return (
@@ -77,6 +104,10 @@ function App() {
         />
         <button type="submit">Add</button>
       </form>
+
+      {loading && <p>Loading...</p>}
+      {error && <p style={{ color: "red" }}>{error}</p>}
+      {!loading && !error && tasks.length === 0 && <p>No tasks yet.</p>}
 
       <ul>
         {tasks.map((task) => (
