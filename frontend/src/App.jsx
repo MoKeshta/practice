@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-const API = "http://localhost:3000/tasks";
+const API = (import.meta.env.VITE_API_URL || "http://localhost:3000") + "/tasks";
 
 async function request(url, options) {
   const res = await fetch(url, options);

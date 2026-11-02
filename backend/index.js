@@ -46,5 +46,5 @@ app.delete("/tasks/:id", async (req, res) => {
   if (result.rows.length === 0) return res.status(404).json({ error: "Task not found" });
   res.status(204).send();
 });
-
-app.listen(3000, () => console.log("Listening on port 3000"));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Listening on port ${PORT}`));
