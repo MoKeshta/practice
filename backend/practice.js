@@ -50,7 +50,7 @@ function getPerson(searchName) {
 
 async function main() {
   try {
-    const person = await getPerson("Nobody");
+    const person = await getPerson("Ali");
     console.log(person);
   } catch (error) {
     console.log("Error:", error);
