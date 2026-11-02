@@ -5,6 +5,8 @@ const API = "http://localhost:3000/tasks";
 function App() {
   const [tasks, setTasks] = useState([]);
   const [title, setTitle] = useState("");
+  const [editingId, setEditingId] = useState(null);
+  const [editTitle, setEditTitle] = useState("");
 
   async function loadTasks() {
     const res = await fetch(API);
@@ -42,6 +44,27 @@ function App() {
     loadTasks();
   }
 
+  function startEdit(task) {
+    setEditingId(task.id);
+    setEditTitle(task.title);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditTitle("");
+  }
+
+  async function saveEdit(id) {
+    if (!editTitle.trim()) return;
+    await fetch(`${API}/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: editTitle }),
+    });
+    cancelEdit();
+    loadTasks();
+  }
+
   return (
     <div style={{ maxWidth: 500, margin: "40px auto", fontFamily: "sans-serif" }}>
       <h1>Task Manager</h1>
@@ -63,10 +86,25 @@ function App() {
               checked={task.done}
               onChange={() => toggleTask(task)}
             />
-            <span style={{ textDecoration: task.done ? "line-through" : "none" }}>
-              {task.title}
-            </span>
-            <button onClick={() => deleteTask(task.id)}>Delete</button>
+
+            {editingId === task.id ? (
+              <>
+                <input
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                />
+                <button onClick={() => saveEdit(task.id)}>Save</button>
+                <button onClick={cancelEdit}>Cancel</button>
+              </>
+            ) : (
+              <>
+                <span style={{ textDecoration: task.done ? "line-through" : "none" }}>
+                  {task.title}
+                </span>
+                <button onClick={() => startEdit(task)}>Edit</button>
+                <button onClick={() => deleteTask(task.id)}>Delete</button>
+              </>
+            )}
           </li>
         ))}
       </ul>
