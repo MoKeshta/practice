@@ -1,4 +1,5 @@
 const express = require("express");
+const jwt = require("jsonwebtoken");
 const cors = require("cors");
 const pool = require("./db");
 const bcrypt = require("bcryptjs");
@@ -48,16 +49,12 @@ app.delete("/tasks/:id", async (req, res) => {
   res.status(204).send();
 });
 app.post("/register", async (req, res) => {
-  // 1. get email and password from req.body
   const {email , password} = req.body;
 
-  // 2. if either one is missing, return status 400 with an error message
 if (!email || !password) {
-  return res.status(400).json({error : "Must Fill email and Password"}); }
-  // 3. hash the password
+  return res.status(400).json({error : "Must Fill email and Password"}); }  
   const passwordHASH = await bcrypt.hash(password, 10);
-  // 4. inside a try block: insert the email and the hash into users,
-  //    then return status 201 with only the id and email
+  
  try {
   const result = await pool.query(
     "INSERT INTO users (email , password_Hash) VALUES ($1 , $2) RETURNING id,email",
@@ -65,8 +62,7 @@ if (!email || !password) {
   );
    res.status(201).json(result.rows[0]); 
  }
-  // 5. in the catch block: if error.code === "23505", return status 409
-  //    (email already exists), otherwise return status 500
+ 
  catch (error) {
   console.log(error);
   if (error.code === "23505") {
@@ -75,5 +71,42 @@ if (!email || !password) {
   res.status(500).json({ error: "Something went wrong" });
 }
 });
+app.post("/login", async (req, res) => {
+  // 1. get the data
+  const { email, password } = req.body;
+
+  // 2. check it
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email and password are required" });
+  }
+
+  try {
+    // 3. look up the user by email
+    const result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+
+    // 4. no user found
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
+
+    const user = result.rows[0];
+
+    // 5. compare the typed password with the stored hash
+    const match = await bcrypt.compare(password, user.password_hash);
+
+    // 6. wrong password: same message as step 4
+    if (!match) {
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
+
+    // 7. correct: create a token that holds the user's id
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: "1d" });
+    res.json({ token });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ error: "Something went wrong" });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Listening on port ${PORT}`));
